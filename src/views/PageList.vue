@@ -1,17 +1,41 @@
 <template>
   <app-dialog />
   <app-progress v-if="isLoading" />
-  <app-message v-else-if="!isLoading && !interviews.length" severity="info"
-    >Нет добавленных собеседований</app-message
-  >
+  <app-message v-else-if="!isLoading && !interviews.length" severity="info">
+    Нет добавленных собеседований
+  </app-message>
   <div v-else>
     <h1>Список собеседований</h1>
+    <div class="flex align-items center mb-5 gap-3">
+      <div class="flex align-items-center">
+        <app-radio
+          inputId="interviewsResult1"
+          name="result"
+          value="Refusal"
+          v-model="selectedFilterResult"
+        />
+        <label for="interviewsResult1" class="ml-2">Отказ</label>
+      </div>
+      <div class="flex align-items-center">
+        <app-radio
+          inputId="interviewsResult2"
+          name="result"
+          value="Offer"
+          v-model="selectedFilterResult"
+        />
+        <label for="interviewsResult2" class="ml-2">Оффер</label>
+      </div>
+      <app-button @click="submitFilter" :disabled="!selectedFilterResult">Применить</app-button>
+      <app-button @click="clearFilter" :disabled="!selectedFilterResult" severity="danger">
+        Сбросить
+      </app-button>
+    </div>
     <app-data-table :value="interviews">
       <app-column field="company" header="Компания"></app-column>
       <app-column field="hrName" header="Имя HR"></app-column>
-      <app-column field="vacancyLink" header="Вакансия">
+      <app-column field="vacancyLink" header="Ссылка на вакансию">
         <template #body="slotProps">
-          <a :href="slotProps.data.vacancyLink" target="_blank">{{ slotProps.data.vacancyLink }}</a>
+          <a :href="slotProps.data.vacancyLink" target="_blank">Ссылка на вакансию</a>
         </template>
       </app-column>
       <app-column header="Контакты">
@@ -44,6 +68,38 @@
           </div>
         </template>
       </app-column>
+      <app-column header="Пройденный этап">
+        <template #body="slotProps">
+          <span v-if="!slotProps.data.stages">Не заполнено</span>
+          <div v-else class="interviews-stages">
+            <app-badge
+              v-for="(stage, index) in slotProps.data.stages"
+              :key="index"
+              :value="index + 1"
+              rounded
+              v-tooltip.top="stage.name"
+            />
+          </div>
+        </template>
+      </app-column>
+      <app-column header="Зарплатная вилка">
+        <template #body="slotProps">
+          <span v-if="!slotProps.data.salaryFrom">Не заполнено</span>
+          <span v-else-if="!slotProps.data.salaryTo">{{ slotProps.data.salaryFrom }}₽</span>
+          <span v-else>{{ slotProps.data.salaryFrom }}₽ - {{ slotProps.data.salaryTo }}₽</span>
+        </template>
+      </app-column>
+      <app-column header="Результат">
+        <template #body="slotProps">
+          <span v-if="!slotProps.data.result">Не заполнено</span>
+          <template v-else>
+            <app-badge
+              :severity="slotProps.data.result === 'Offer' ? 'success' : 'danger'"
+              :value="slotProps.data.result === 'Offer' ? 'Оффер' : 'Отказ'"
+            />
+          </template>
+        </template>
+      </app-column>
       <app-column>
         <template #body="slotProps">
           <div class="flex gap-2">
@@ -74,7 +130,8 @@ import {
   orderBy,
   getDocs,
   deleteDoc,
-  doc
+  doc,
+  where
 } from 'firebase/firestore'
 import { useUserStore } from '@/stores/user'
 import type { IInterview } from '@/interfaces'
@@ -86,12 +143,37 @@ const confirm = useConfirm()
 
 const interviews = ref<IInterview[]>([])
 const isLoading = ref<boolean>(true)
+const selectedFilterResult = ref<string>('')
 
-const getAllInterviews = async <T extends IInterview>(): Promise<T[]> => {
-  const getData = query(
-    collection(db, `users/${userStore.userId}/interviews`),
-    orderBy('createdAt', 'desc')
-  )
+const submitFilter = async (): Promise<void> => {
+  isLoading.value = true
+  const listIntervies: Array<IInterview> = await getAllInterviews(true)
+  interviews.value = listIntervies
+  isLoading.value = false
+}
+
+const clearFilter = async (): Promise<void> => {
+  isLoading.value = true
+  const listIntervies: Array<IInterview> = await getAllInterviews()
+  interviews.value = listIntervies
+  isLoading.value = false
+}
+
+const getAllInterviews = async <T extends IInterview>(isFilter?: boolean): Promise<T[]> => {
+  let getData
+
+  if (isFilter) {
+    getData = query(
+      collection(db, `users/${userStore.userId}/interviews`),
+      orderBy('createdAt', 'desc'),
+      where('result', '==', selectedFilterResult.value)
+    )
+  } else {
+    getData = query(
+      collection(db, `users/${userStore.userId}/interviews`),
+      orderBy('createdAt', 'desc')
+    )
+  }
 
   const listDocs = await getDocs(getData)
 
@@ -118,7 +200,7 @@ const confirmRemove = async (id: string): Promise<void> => {
 
 onMounted(async () => {
   const listInterviews: IInterview[] = await getAllInterviews()
-  interviews.value = [...listInterviews]
+  interviews.value = listInterviews
   isLoading.value = false
 })
 </script>
@@ -140,5 +222,11 @@ onMounted(async () => {
 }
 .contacts__icon {
   font-size: 20px;
+}
+
+.interviews-stages {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 </style>

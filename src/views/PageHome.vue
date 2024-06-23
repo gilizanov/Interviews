@@ -1,5 +1,5 @@
 <template>
-  <div class="content-interview">
+  <div class="interview-content">
     <app-card>
       <template #title>Новое собеседование</template>
       <template #content>
@@ -34,7 +34,7 @@
           label="Создать собеседование"
           :disabled="disabledSaveButton"
           :loading="loading"
-        ></app-button>
+        />
       </template>
     </app-card>
   </div>
@@ -92,7 +92,7 @@ const disabledSaveButton = computed<boolean>(() => {
 .input {
   width: 100%;
 }
-.content-interview {
+.interview-content {
   max-width: 600px;
   margin: auto;
 }
